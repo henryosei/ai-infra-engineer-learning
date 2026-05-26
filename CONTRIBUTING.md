@@ -521,8 +521,8 @@ grip README.md --browser
 
 - **GitHub Discussions**: Ask questions, share ideas
 - **Issue Tracker**: Report bugs, request features
-- **Slack** (coming soon): Real-time chat
-- **Office Hours** (coming soon): Monthly community calls
+
+Real-time chat and recurring office hours are not currently scheduled. Open a Discussion if you'd like to coordinate a study group.
 
 ### Recognition
 

@@ -266,12 +266,7 @@ See [CONTRIBUTING.md](../CONTRIBUTING.md) for detailed guidelines. Ways to contr
 
 ### Is there a community chat?
 
-Coming soon! We're planning:
-- Slack workspace
-- Discord server
-- Monthly community calls
-
-Watch the repository for announcements.
+[GitHub Discussions](https://github.com/ai-infra-curriculum/ai-infra-engineer-learning/discussions) is the supported channel today. Real-time chat (Slack/Discord) and recurring office hours are not currently scheduled — open a Discussion if you'd like to coordinate a study group.
 
 ### Can I share my progress?
 

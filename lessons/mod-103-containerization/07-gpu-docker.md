@@ -707,7 +707,132 @@ volumes:
   artifacts:
 ```
 
-**TODO: Complete the exercise by implementing Dockerfiles and Python scripts**
+**preprocess/Dockerfile:**
+```dockerfile
+FROM python:3.11-slim
+
+WORKDIR /app
+RUN pip install --no-cache-dir pandas numpy scikit-learn
+
+COPY preprocess.py .
+CMD ["python", "preprocess.py"]
+```
+
+**preprocess/preprocess.py:**
+```python
+import pandas as pd
+from pathlib import Path
+from sklearn.model_selection import train_test_split
+
+RAW = Path("/data/raw")
+OUT = Path("/data/processed")
+OUT.mkdir(parents=True, exist_ok=True)
+
+df = pd.concat(pd.read_csv(p) for p in RAW.glob("*.csv"))
+df = df.dropna().drop_duplicates()
+train, test = train_test_split(df, test_size=0.2, random_state=42)
+train.to_parquet(OUT / "train.parquet")
+test.to_parquet(OUT / "test.parquet")
+print(f"preprocess: train={len(train)} test={len(test)}")
+```
+
+**train/Dockerfile:**
+```dockerfile
+FROM nvidia/cuda:12.2.0-cudnn8-runtime-ubuntu22.04
+
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    python3 python3-pip && \
+    rm -rf /var/lib/apt/lists/*
+
+WORKDIR /app
+RUN pip3 install --no-cache-dir torch torchvision pandas pyarrow
+
+COPY train.py .
+CMD ["python3", "train.py"]
+```
+
+**train/train.py:**
+```python
+import os
+import torch
+import torch.nn as nn
+import pandas as pd
+from pathlib import Path
+
+EPOCHS = int(os.environ.get("EPOCHS", 10))
+BATCH_SIZE = int(os.environ.get("BATCH_SIZE", 32))
+device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+print(f"train: device={device}")
+
+train = pd.read_parquet("/data/train.parquet")
+X = torch.tensor(train.drop(columns=["label"]).values, dtype=torch.float32, device=device)
+y = torch.tensor(train["label"].values, dtype=torch.long, device=device)
+
+model = nn.Sequential(
+    nn.Linear(X.shape[1], 128), nn.ReLU(),
+    nn.Linear(128, int(y.max().item()) + 1),
+).to(device)
+
+opt = torch.optim.Adam(model.parameters(), lr=1e-3)
+loss_fn = nn.CrossEntropyLoss()
+
+for epoch in range(EPOCHS):
+    for i in range(0, len(X), BATCH_SIZE):
+        opt.zero_grad()
+        out = model(X[i:i + BATCH_SIZE])
+        loss = loss_fn(out, y[i:i + BATCH_SIZE])
+        loss.backward()
+        opt.step()
+    print(f"epoch={epoch} loss={loss.item():.4f}")
+
+Path("/models").mkdir(exist_ok=True)
+torch.save(model.state_dict(), "/models/model.pt")
+```
+
+**export/Dockerfile:**
+```dockerfile
+FROM python:3.11-slim
+
+WORKDIR /app
+RUN pip install --no-cache-dir torch onnx
+
+COPY export.py .
+CMD ["python", "export.py"]
+```
+
+**export/export.py:**
+```python
+import torch
+import torch.nn as nn
+from pathlib import Path
+
+# Reconstruct the architecture identically to train.py.
+# In production, persist the architecture or use torch.jit.script.
+input_dim = 16  # match feature count
+num_classes = 10
+model = nn.Sequential(
+    nn.Linear(input_dim, 128), nn.ReLU(),
+    nn.Linear(128, num_classes),
+)
+model.load_state_dict(torch.load("/models/model.pt", map_location="cpu"))
+model.train(False)  # switch to inference mode (equivalent to .eval())
+
+dummy = torch.randn(1, input_dim)
+out = Path("/artifacts")
+out.mkdir(exist_ok=True)
+torch.onnx.export(model, dummy, out / "model.onnx", opset_version=17)
+print("export: wrote /artifacts/model.onnx")
+```
+
+Run the full pipeline with:
+
+```bash
+docker compose build
+docker compose up --abort-on-container-exit
+```
+
+The train service requests one GPU via the `nvidia` driver. Verify GPU
+visibility inside the container with `docker compose run train nvidia-smi`.
 
 ## Summary
 
