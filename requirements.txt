@@ -13,7 +13,7 @@ scikit-learn==1.5.2
 fastapi==0.104.1
 uvicorn[standard]==0.24.0
 pydantic>=2.5.0,<3.0
-python-multipart==0.0.6
+python-multipart==0.0.31
 
 # Cloud SDKs
 boto3>=1.34.0  # AWS
